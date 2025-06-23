@@ -2,44 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spotify YouTube Player</title>
+  <title>Spotify → YouTube Audio</title>
   <style>
-    body {
-      background: #111;
-      color: #fff;
-      font-family: sans-serif;
-      text-align: center;
-      padding: 2rem;
-    }
-    input, button {
-      padding: 0.8rem;
-      font-size: 1rem;
-      border-radius: 8px;
-      border: none;
-      margin: 0.5rem;
-    }
-    button {
-      background: #1db954;
-      color: white;
-      cursor: pointer;
-    }
-    #trackList button {
-      display: block;
-      width: 100%;
-      margin: 0.3rem auto;
-      background: #333;
-    }
-    iframe {
-      margin-top: 2rem;
-      border-radius: 12px;
-    }
+    body { background:#111; color:#fff; font-family:sans-serif; padding:2rem; text-align:center; }
+    input, button { font-size:1rem; padding:0.6rem; margin:0.5rem; border:none; border-radius:6px; }
+    button { background:#1db954; color:#000; cursor:pointer; }
+    #trackList button { display:block; width:90%; margin:0.3rem auto; background:#333; color:#fff; }
+    #player iframe { width:560px; height:315px; margin-top:2rem; border:none; border-radius:8px; }
   </style>
 </head>
 <body>
-  <h1>Spotify Playlist YouTube Player</h1>
+
+  <h1>Spotify Playlist → YouTube</h1>
   <input id="playlistUrl" type="text" placeholder="Enter Spotify Playlist URL" size="50" />
   <button onclick="loadPlaylist()">Load Playlist</button>
+
   <div id="trackList"></div>
   <div id="player"></div>
 
@@ -51,31 +28,34 @@
     }
 
     function extractPlaylistId(url) {
-      const match = url.match(/playlist\/(.*?)($|\?|\#)/);
-      return match ? match[1] : null;
+      const m = url.match(/playlist\/([a-zA-Z0-9]+)(\?|$)/);
+      return m ? m[1] : null;
     }
 
     async function loadPlaylist() {
-      const url = document.getElementById('playlistUrl').value;
-      const playlistId = extractPlaylistId(url);
-      if (!playlistId) return alert('Invalid Spotify playlist URL');
+      const url = document.getElementById('playlistUrl').value.trim();
+      const pid = extractPlaylistId(url);
+      if (!pid) return alert('Invalid Spotify playlist URL');
 
       const token = await getSpotifyToken();
-      const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+      const res = await fetch(`https://api.spotify.com/v1/playlists/${pid}/tracks?limit=100`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) return alert('Failed to fetch playlist');
       const data = await res.json();
-      const tracks = data.items.map(item => item.track).filter(t => t);
 
-      const trackList = document.getElementById('trackList');
-      trackList.innerHTML = '';
+      const tracks = data.items
+        .map(i => i.track)
+        .filter(t => t && t.name && t.artists && t.artists[0])
+        .map(t => `${t.name} ${t.artists[0].name}`);
 
-      tracks.forEach(track => {
-        const title = `${track.name} ${track.artists[0].name}`;
+      const listDiv = document.getElementById('trackList');
+      listDiv.innerHTML = '';
+      tracks.forEach(q => {
         const btn = document.createElement('button');
-        btn.textContent = title;
-        btn.onclick = () => playTrack(title);
-        trackList.appendChild(btn);
+        btn.textContent = q;
+        btn.onclick = () => playTrack(q);
+        listDiv.appendChild(btn);
       });
     }
 
@@ -84,12 +64,14 @@
       const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
       try {
         const html = await fetch(cors + url).then(r => r.text());
-        const match = html.match(/\"videoId\":\"(.*?)\"/);
-        if (!match) throw new Error('No YouTube video found');
-        const videoId = match[1];
+
+        const vidMatch = html.match(/"videoRenderer":\s*\{[\s\S]*?"videoId":"([^"]+)"/);
+        if (!vidMatch) throw new Error('No videoRenderer found');
+
+        const videoId = vidMatch[1];
         document.getElementById('player').innerHTML = `
-          <iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-        `;
+          <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0"
+                  allow="autoplay; encrypted-media"></iframe>`;
       } catch (err) {
         alert('Error playing song: ' + err.message);
       }
