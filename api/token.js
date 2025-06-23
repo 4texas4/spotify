@@ -1,7 +1,6 @@
-// api/token.js
 export default async function handler(req, res) {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const clientId = '3802011aaa7c42229602a521e35c33de';
+  const clientSecret = '6caba9949e724308b7bcffd0a91de9b3';
 
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
