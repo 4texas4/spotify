@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Spotify Playlist YouTube Player (corsproxy + lazy YT)</title>
+<title>Spotify Playlist YouTube Player (corsproxy.io YouTube Search)</title>
 <style>
   body {
     background: #000; color: #fff; font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1rem;
@@ -107,14 +107,12 @@
     return allTracks;
   }
 
-  // corsproxy search for YouTube video id for "title artist"
   async function searchYouTubeVideoId(query) {
     const cors = 'https://corsproxy.io/?';
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     try {
       const res = await fetch(cors + url);
       const text = await res.text();
-      // Grab first videoRenderer videoId from page
       const match = /"videoRenderer":\s*{.*?"videoId":"(.*?)"/.exec(text);
       return match ? match[1] : null;
     } catch {
@@ -313,9 +311,7 @@
   document.getElementById('downloadBtn').onclick = downloadCurrentTrack;
   document.getElementById('progressContainer').onclick = seek;
 
-  // YouTube iframe API requires this globally:
   function onYouTubeIframeAPIReady() {}
-
 </script>
 </body>
 </html>
