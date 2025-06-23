@@ -1,342 +1,372 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Spotify Playlist YouTube Player</title>
-<style>
-  body {
-    background: #121212;
-    color: #eee;
-    font-family: Arial, sans-serif;
-    margin: 0; padding: 1rem;
-  }
-  #input-section {
-    text-align: center;
-    margin-bottom: 1rem;
-  }
-  input, button {
-    font-size: 1rem;
-    padding: 0.5rem;
-  }
-  input {
-    width: 300px;
-    border-radius: 5px;
-    border: none;
-    margin-right: 0.5rem;
-  }
-  button {
-    background: #1db954;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-  button:disabled {
-    background: #444;
-    cursor: not-allowed;
-  }
-  #playlist {
-    max-width: 700px;
-    margin: auto;
-  }
-  .track {
-    background: #222;
-    margin: 0.3rem 0;
-    padding: 0.5rem 0.7rem;
-    border-radius: 6px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .track.selected {
-    background: #1db954;
-    color: #000;
-  }
-  .track-info {
-    flex: 1;
-  }
-  .track-title {
-    font-weight: bold;
-  }
-  .track-artists {
-    font-size: 0.9rem;
-    color: #bbb;
-  }
-  .download-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    margin-left: 10px;
-  }
-  .download-btn img {
-    width: 24px;
-    height: 24px;
-  }
-  #player-container {
-    margin: 1rem auto;
-    max-width: 700px;
-    text-align: center;
-  }
-  #controls {
-    margin-top: 0.5rem;
-  }
-  #controls button {
-    margin: 0 0.5rem;
-    background: #1db954;
-    color: #000;
-    border: none;
-    border-radius: 4px;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-  }
-  #progress-container {
-    background: #444;
-    height: 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 10px;
-    position: relative;
-  }
-  #progress-bar {
-    background: #1db954;
-    height: 100%;
-    width: 0%;
-    border-radius: 4px;
-  }
-  #time-display {
-    margin-top: 4px;
-    font-size: 0.9rem;
-    color: #bbb;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>Spotify Playlist Player via YouTube</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #eee;
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh;
+    }
+    header {
+      margin: 1rem;
+      font-size: 1.5rem;
+    }
+    #input-container {
+      margin: 1rem;
+      text-align: center;
+    }
+    input[type=text] {
+      width: 300px;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      font-size: 1rem;
+    }
+    button {
+      padding: 8px 16px;
+      margin-left: 8px;
+      border-radius: 6px;
+      border: none;
+      background-color: #1db954;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover {
+      background-color: #17a64b;
+    }
+    #track-list {
+      max-width: 800px;
+      width: 90%;
+      margin: 1rem auto;
+      overflow-y: auto;
+      max-height: 60vh;
+      background: #222;
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .track-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #444;
+    }
+    .track-info {
+      flex-grow: 1;
+      margin-right: 10px;
+    }
+    .track-title {
+      font-weight: bold;
+    }
+    .track-artists {
+      font-size: 0.9rem;
+      color: #bbb;
+    }
+    .play-btn, .download-btn {
+      cursor: pointer;
+      background: #1db954;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      color: white;
+      font-weight: bold;
+      margin-left: 6px;
+      user-select: none;
+    }
+    .play-btn:hover, .download-btn:hover {
+      background: #17a64b;
+    }
+    #player-container {
+      width: 90%;
+      max-width: 800px;
+      margin: 1rem auto;
+      background: #181818;
+      border-radius: 12px;
+      padding: 1rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+    }
+    #youtube-iframe {
+      width: 100%;
+      height: 360px;
+      border-radius: 12px;
+      border: none;
+    }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+    }
+    #progress-container {
+      flex-grow: 1;
+      height: 10px;
+      background: #444;
+      border-radius: 5px;
+      cursor: pointer;
+      position: relative;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #1db954;
+      width: 0%;
+      border-radius: 5px;
+    }
+    #time {
+      width: 100px;
+      text-align: center;
+      font-family: monospace;
+    }
+  </style>
 </head>
 <body>
 
-<div id="input-section">
-  <input type="text" id="playlistId" placeholder="Enter Spotify Playlist ID" />
-  <button id="loadBtn">Load Playlist</button>
+<header>Spotify Playlist Player (via YouTube)</header>
+
+<div id="input-container">
+  <input id="playlist-input" type="text" placeholder="Paste Spotify playlist URL or ID" />
+  <button id="load-playlist">Load Playlist</button>
 </div>
 
-<div id="playlist"></div>
+<div id="track-list"></div>
 
 <div id="player-container" style="display:none;">
-  <div id="ytplayer"></div>
+  <iframe id="youtube-iframe" src="" allow="autoplay" allowfullscreen></iframe>
   <div id="controls">
-    <button id="prevBtn">Prev</button>
-    <button id="playPauseBtn">Play</button>
-    <button id="nextBtn">Next</button>
+    <button id="btn-prev">⏮️</button>
+    <button id="btn-play">▶️</button>
+    <button id="btn-next">⏭️</button>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="time">0:00 / 0:00</div>
+    <button id="btn-download">⬇️ Download</button>
   </div>
-  <div id="progress-container">
-    <div id="progress-bar"></div>
-  </div>
-  <div id="time-display">0:00 / 0:00</div>
 </div>
 
-<script src="https://www.youtube.com/iframe_api"></script>
 <script>
-  const backendUrl = ''; // Set this to your deployed Vercel app URL (empty if same domain)
+  // Extract Spotify playlist ID from full URL or just pass ID
+  function extractPlaylistId(input) {
+    try {
+      const url = new URL(input);
+      if (url.hostname.includes('spotify.com')) {
+        const parts = url.pathname.split('/');
+        const idx = parts.indexOf('playlist');
+        if (idx !== -1 && parts.length > idx + 1) {
+          return parts[idx + 1];
+        }
+      }
+    } catch {
+      // Not a URL, just return input as is
+    }
+    return input;
+  }
 
-  let playlistTracks = [];
-  let currentTrackIndex = -1;
-  let player;
-  let isPlaying = false;
-  let progressInterval;
-
-  const playlistDiv = document.getElementById('playlist');
-  const loadBtn = document.getElementById('loadBtn');
-  const playlistInput = document.getElementById('playlistId');
+  const playlistInput = document.getElementById('playlist-input');
+  const loadBtn = document.getElementById('load-playlist');
+  const trackList = document.getElementById('track-list');
   const playerContainer = document.getElementById('player-container');
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
+  const youtubeIframe = document.getElementById('youtube-iframe');
+  const btnPlay = document.getElementById('btn-play');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnDownload = document.getElementById('btn-download');
   const progressContainer = document.getElementById('progress-container');
   const progressBar = document.getElementById('progress-bar');
-  const timeDisplay = document.getElementById('time-display');
+  const timeDisplay = document.getElementById('time');
 
-  loadBtn.onclick = async () => {
-    const pid = playlistInput.value.trim();
-    if (!pid) {
-      alert('Please enter a Spotify playlist ID');
+  let tracks = [];
+  let currentIndex = -1;
+  let playerPlaying = false;
+  let progressInterval = null;
+
+  // Use cors proxy for YouTube search
+  const CORS_PROXY = 'https://corsproxy.io/?';
+
+  // Search YouTube for a video matching song + artist, return first videoId found
+  async function searchYouTubeVideo(query) {
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + ' audio')}`;
+    try {
+      const res = await fetch(CORS_PROXY + url);
+      const html = await res.text();
+      const videoRegex = /"videoRenderer":\s*{(.*?)"videoId":"(.*?)".*?"title":\{"runs":\[\{"text":"(.*?)"\}/gs;
+      const match = videoRegex.exec(html);
+      if (match) {
+        return match[2]; // videoId
+      }
+      return null;
+    } catch (e) {
+      console.error('YouTube search failed:', e);
+      return null;
+    }
+  }
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function updateProgress() {
+    if (!youtubeIframe.src) return;
+    // Use YouTube Player API is complicated here because iframe is on another domain and no API instance
+    // So progress bar cannot sync accurately — skipping for now
+  }
+
+  // Play a track by index
+  async function playTrack(index) {
+    if (index < 0 || index >= tracks.length) return;
+    currentIndex = index;
+    playerPlaying = true;
+    btnPlay.textContent = '⏸️';
+
+    const track = tracks[index];
+    const query = `${track.title} ${track.artists}`;
+
+    // Search YouTube video id for the track
+    track.youtubeId = track.youtubeId || await searchYouTubeVideo(query);
+    if (!track.youtubeId) {
+      alert(`Could not find YouTube video for "${track.title}"`);
       return;
     }
-    loadBtn.disabled = true;
-    loadBtn.textContent = 'Loading...';
-    playlistTracks = [];
-    currentTrackIndex = -1;
-    playlistDiv.innerHTML = '';
-    playerContainer.style.display = 'none';
 
-    try {
-      const resp = await fetch(`${backendUrl}/api/playlist?id=${pid}`);
-      const data = await resp.json();
-      if(data.error) throw new Error(data.error);
-      playlistTracks = data.tracks || [];
-      renderPlaylist();
-      if(playlistTracks.length > 0){
-        currentTrackIndex = 0;
-        loadTrack(currentTrackIndex);
-        playerContainer.style.display = 'block';
-      } else {
-        alert('Playlist is empty or not found');
-      }
-    } catch (e) {
-      alert('Error loading playlist: ' + e.message);
+    const embedUrl = `https://www.youtube.com/embed/${track.youtubeId}?autoplay=1&controls=0&disablekb=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`;
+    youtubeIframe.src = embedUrl;
+
+    // Show player container if hidden
+    playerContainer.style.display = 'flex';
+  }
+
+  // Pause or play toggle
+  function togglePlayPause() {
+    // Reload iframe src to play or pause (hacky workaround)
+    if (playerPlaying) {
+      // Pause by resetting src without autoplay
+      youtubeIframe.src = youtubeIframe.src.replace('autoplay=1', 'autoplay=0');
+      playerPlaying = false;
+      btnPlay.textContent = '▶️';
+    } else {
+      // Play by resetting src with autoplay
+      youtubeIframe.src = youtubeIframe.src.replace('autoplay=0', 'autoplay=1');
+      playerPlaying = true;
+      btnPlay.textContent = '⏸️';
     }
+  }
 
-    loadBtn.disabled = false;
-    loadBtn.textContent = 'Load Playlist';
-  };
+  // Play next track
+  function playNext() {
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= tracks.length) nextIndex = 0;
+    playTrack(nextIndex);
+  }
 
-  function renderPlaylist(){
-    playlistDiv.innerHTML = '';
-    playlistTracks.forEach((track, i) => {
+  // Play previous track
+  function playPrev() {
+    let prevIndex = currentIndex - 1;
+    if (prevIndex < 0) prevIndex = tracks.length -1;
+    playTrack(prevIndex);
+  }
+
+  // Download current track (opens yt1d downloader page)
+  function downloadCurrent() {
+    if (currentIndex < 0 || currentIndex >= tracks.length) return;
+    const track = tracks[currentIndex];
+    if (!track.youtubeId) {
+      alert('No YouTube video found to download');
+      return;
+    }
+    const url = `https://yt1d.com/en307/watch?v=${track.youtubeId}`;
+    window.open(url, '_blank');
+  }
+
+  // Render track list with play and download buttons
+  function renderTrackList() {
+    trackList.innerHTML = '';
+    tracks.forEach((t, i) => {
       const div = document.createElement('div');
-      div.className = 'track' + (i === currentTrackIndex ? ' selected' : '');
-      div.innerHTML = `
-        <div class="track-info">
-          <div class="track-title">${track.title}</div>
-          <div class="track-artists">${track.artists}</div>
-        </div>
-      `;
-      div.onclick = () => {
-        selectTrack(i);
+      div.className = 'track-item';
+
+      const info = document.createElement('div');
+      info.className = 'track-info';
+      info.innerHTML = `<div class="track-title">${t.title}</div><div class="track-artists">${t.artists}</div>`;
+
+      const playBtn = document.createElement('button');
+      playBtn.className = 'play-btn';
+      playBtn.textContent = '▶️';
+      playBtn.onclick = () => playTrack(i);
+
+      const downloadBtn = document.createElement('button');
+      downloadBtn.className = 'download-btn';
+      downloadBtn.textContent = '⬇️';
+      downloadBtn.onclick = async () => {
+        if (!t.youtubeId) {
+          t.youtubeId = await searchYouTubeVideo(t.title + ' ' + t.artists);
+          if (!t.youtubeId) {
+            alert('Could not find YouTube video for download');
+            return;
+          }
+        }
+        const url = `https://yt1d.com/en307/watch?v=${t.youtubeId}`;
+        window.open(url, '_blank');
       };
-      playlistDiv.appendChild(div);
+
+      div.appendChild(info);
+      div.appendChild(playBtn);
+      div.appendChild(downloadBtn);
+      trackList.appendChild(div);
     });
   }
 
-  function selectTrack(i){
-    if(i === currentTrackIndex) return;
-    currentTrackIndex = i;
-    loadTrack(i);
-    renderPlaylist();
-  }
-
-  async function loadTrack(i){
-    if(!player) {
-      player = new YT.Player('ytplayer', {
-        height: '0',
-        width: '0',
-        events: {
-          onStateChange: onPlayerStateChange,
-          onReady: () => {
-            playCurrentTrack();
-          }
-        }
-      });
+  loadBtn.onclick = async () => {
+    const rawInput = playlistInput.value.trim();
+    if (!rawInput) {
+      alert('Please enter a Spotify playlist URL or ID');
+      return;
     }
-    isPlaying = false;
-    updatePlayPauseButton();
-    const track = playlistTracks[i];
-    const videoId = await searchYouTube(`${track.title} ${track.artists}`);
-    if(videoId){
-      player.loadVideoById(videoId);
-    }
-  }
+    const playlistId = extractPlaylistId(rawInput);
 
-  async function searchYouTube(query){
-    const corsProxy = 'https://corsproxy.io/?';
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const resp = await fetch(corsProxy + encodeURIComponent(searchUrl));
-    const text = await resp.text();
+    trackList.innerHTML = 'Loading playlist...';
+    playerContainer.style.display = 'none';
+    youtubeIframe.src = '';
 
-    const videoIdMatch = text.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-    if(videoIdMatch){
-      return videoIdMatch[1];
-    } else {
-      alert('No YouTube video found for: ' + query);
-      return '';
-    }
-  }
-
-  function onPlayerStateChange(event){
-    if(event.data === YT.PlayerState.ENDED){
-      playNext();
-    } else if(event.data === YT.PlayerState.PLAYING){
-      isPlaying = true;
-      updatePlayPauseButton();
-      startProgressUpdater();
-    } else if(event.data === YT.PlayerState.PAUSED){
-      isPlaying = false;
-      updatePlayPauseButton();
-      stopProgressUpdater();
-    }
-  }
-
-  function playCurrentTrack(){
-    if(player && currentTrackIndex >= 0) {
-      player.playVideo();
-      isPlaying = true;
-      updatePlayPauseButton();
-      startProgressUpdater();
-      renderPlaylist();
-    }
-  }
-
-  function pauseCurrentTrack(){
-    if(player){
-      player.pauseVideo();
-      isPlaying = false;
-      updatePlayPauseButton();
-      stopProgressUpdater();
-    }
-  }
-
-  playPauseBtn.onclick = () => {
-    if(isPlaying) pauseCurrentTrack();
-    else playCurrentTrack();
-  };
-
-  prevBtn.onclick = () => {
-    if(currentTrackIndex > 0){
-      selectTrack(currentTrackIndex - 1);
-    }
-  };
-
-  nextBtn.onclick = () => {
-    if(currentTrackIndex < playlistTracks.length - 1){
-      selectTrack(currentTrackIndex + 1);
-    }
-  };
-
-  progressContainer.onclick = (e) => {
-    if(!player) return;
-    const rect = progressContainer.getBoundingClientRect();
-    const clickPos = e.clientX - rect.left;
-    const ratio = clickPos / rect.width;
-    const duration = player.getDuration();
-    player.seekTo(duration * ratio, true);
-  };
-
-  function startProgressUpdater(){
-    stopProgressUpdater();
-    progressInterval = setInterval(() => {
-      if(!player || !isPlaying) return;
-      const current = player.getCurrentTime();
-      const duration = player.getDuration();
-      if(duration > 0){
-        const percent = (current / duration) * 100;
-        progressBar.style.width = percent + '%';
-        timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(duration);
+    try {
+      const resp = await fetch(`/api/playlist?id=${encodeURIComponent(playlistId)}`);
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        alert('Error loading playlist: ' + errorText);
+        trackList.innerHTML = '';
+        return;
       }
-    }, 500);
-  }
+      const data = await resp.json();
+      tracks = data.tracks || [];
+      if (!tracks.length) {
+        trackList.innerHTML = 'No tracks found in playlist.';
+        return;
+      }
+      renderTrackList();
+    } catch (e) {
+      alert('Error loading playlist: ' + e.message);
+      trackList.innerHTML = '';
+    }
+  };
 
-  function stopProgressUpdater(){
-    if(progressInterval) clearInterval(progressInterval);
-  }
+  btnPlay.onclick = togglePlayPause;
+  btnNext.onclick = playNext;
+  btnPrev.onclick = playPrev;
+  btnDownload.onclick = downloadCurrent;
 
-  function formatTime(seconds){
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function updatePlayPauseButton(){
-    playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
-  }
 </script>
 
 </body>
