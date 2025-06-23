@@ -1,372 +1,97 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Spotify Playlist Player via YouTube</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #121212;
-      color: #eee;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column; align-items: center;
-      min-height: 100vh;
-    }
-    header {
-      margin: 1rem;
-      font-size: 1.5rem;
-    }
-    #input-container {
-      margin: 1rem;
-      text-align: center;
-    }
-    input[type=text] {
-      width: 300px;
-      padding: 8px;
-      border-radius: 6px;
-      border: none;
-      font-size: 1rem;
-    }
-    button {
-      padding: 8px 16px;
-      margin-left: 8px;
-      border-radius: 6px;
-      border: none;
-      background-color: #1db954;
-      color: white;
-      font-weight: bold;
-      cursor: pointer;
-      font-size: 1rem;
-    }
-    button:hover {
-      background-color: #17a64b;
-    }
-    #track-list {
-      max-width: 800px;
-      width: 90%;
-      margin: 1rem auto;
-      overflow-y: auto;
-      max-height: 60vh;
-      background: #222;
-      border-radius: 10px;
-      padding: 1rem;
-    }
-    .track-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid #444;
-    }
-    .track-info {
-      flex-grow: 1;
-      margin-right: 10px;
-    }
-    .track-title {
-      font-weight: bold;
-    }
-    .track-artists {
-      font-size: 0.9rem;
-      color: #bbb;
-    }
-    .play-btn, .download-btn {
-      cursor: pointer;
-      background: #1db954;
-      border: none;
-      border-radius: 6px;
-      padding: 6px 12px;
-      color: white;
-      font-weight: bold;
-      margin-left: 6px;
-      user-select: none;
-    }
-    .play-btn:hover, .download-btn:hover {
-      background: #17a64b;
-    }
-    #player-container {
-      width: 90%;
-      max-width: 800px;
-      margin: 1rem auto;
-      background: #181818;
-      border-radius: 12px;
-      padding: 1rem;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      color: white;
-    }
-    #youtube-iframe {
-      width: 100%;
-      height: 360px;
-      border-radius: 12px;
-      border: none;
-    }
-    #controls {
-      margin-top: 10px;
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      align-items: center;
-      width: 100%;
-    }
-    #progress-container {
-      flex-grow: 1;
-      height: 10px;
-      background: #444;
-      border-radius: 5px;
-      cursor: pointer;
-      position: relative;
-    }
-    #progress-bar {
-      height: 100%;
-      background: #1db954;
-      width: 0%;
-      border-radius: 5px;
-    }
-    #time {
-      width: 100px;
-      text-align: center;
-      font-family: monospace;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>Spotify Playlist Viewer</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 2em auto; }
+  input, button { width: 100%; padding: 10px; margin: 0.5em 0; font-size: 1em; }
+  ul { list-style: none; padding: 0; }
+  li { margin: 0.3em 0; }
+</style>
 </head>
 <body>
 
-<header>Spotify Playlist Player (via YouTube)</header>
+<h2>Enter Spotify Public Playlist URL</h2>
+<input id="playlistUrl" placeholder="Paste your Spotify playlist link here" />
+<button id="loadBtn">Load Tracks</button>
 
-<div id="input-container">
-  <input id="playlist-input" type="text" placeholder="Paste Spotify playlist URL or ID" />
-  <button id="load-playlist">Load Playlist</button>
-</div>
-
-<div id="track-list"></div>
-
-<div id="player-container" style="display:none;">
-  <iframe id="youtube-iframe" src="" allow="autoplay" allowfullscreen></iframe>
-  <div id="controls">
-    <button id="btn-prev">⏮️</button>
-    <button id="btn-play">▶️</button>
-    <button id="btn-next">⏭️</button>
-    <div id="progress-container">
-      <div id="progress-bar"></div>
-    </div>
-    <div id="time">0:00 / 0:00</div>
-    <button id="btn-download">⬇️ Download</button>
-  </div>
-</div>
+<h3>Tracks:</h3>
+<ul id="trackList"></ul>
 
 <script>
-  // Extract Spotify playlist ID from full URL or just pass ID
-  function extractPlaylistId(input) {
-    try {
-      const url = new URL(input);
-      if (url.hostname.includes('spotify.com')) {
-        const parts = url.pathname.split('/');
-        const idx = parts.indexOf('playlist');
-        if (idx !== -1 && parts.length > idx + 1) {
-          return parts[idx + 1];
-        }
-      }
-    } catch {
-      // Not a URL, just return input as is
+  function extractPlaylistId(url) {
+    const match = url.match(/playlist\/([a-zA-Z0-9]+)/);
+    return match ? match[1] : null;
+  }
+
+  async function getToken() {
+    const res = await fetch('/api/token');
+    if (!res.ok) throw new Error('Failed to fetch token');
+    const data = await res.json();
+    return data.access_token;
+  }
+
+  async function fetchPlaylistTracks(playlistId, token) {
+    let allTracks = [];
+    let offset = 0;
+    const limit = 100;
+
+    while (true) {
+      const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?offset=${offset}&limit=${limit}`, {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) throw new Error('Failed to fetch playlist tracks');
+      const data = await res.json();
+      allTracks = allTracks.concat(data.items);
+      if (!data.next) break;
+      offset += limit;
     }
-    return input;
+    return allTracks;
   }
 
-  const playlistInput = document.getElementById('playlist-input');
-  const loadBtn = document.getElementById('load-playlist');
-  const trackList = document.getElementById('track-list');
-  const playerContainer = document.getElementById('player-container');
-  const youtubeIframe = document.getElementById('youtube-iframe');
-  const btnPlay = document.getElementById('btn-play');
-  const btnPrev = document.getElementById('btn-prev');
-  const btnNext = document.getElementById('btn-next');
-  const btnDownload = document.getElementById('btn-download');
-  const progressContainer = document.getElementById('progress-container');
-  const progressBar = document.getElementById('progress-bar');
-  const timeDisplay = document.getElementById('time');
-
-  let tracks = [];
-  let currentIndex = -1;
-  let playerPlaying = false;
-  let progressInterval = null;
-
-  // Use cors proxy for YouTube search
-  const CORS_PROXY = 'https://corsproxy.io/?';
-
-  // Search YouTube for a video matching song + artist, return first videoId found
-  async function searchYouTubeVideo(query) {
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + ' audio')}`;
-    try {
-      const res = await fetch(CORS_PROXY + url);
-      const html = await res.text();
-      const videoRegex = /"videoRenderer":\s*{(.*?)"videoId":"(.*?)".*?"title":\{"runs":\[\{"text":"(.*?)"\}/gs;
-      const match = videoRegex.exec(html);
-      if (match) {
-        return match[2]; // videoId
-      }
-      return null;
-    } catch (e) {
-      console.error('YouTube search failed:', e);
-      return null;
-    }
-  }
-
-  function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  }
-
-  function updateProgress() {
-    if (!youtubeIframe.src) return;
-    // Use YouTube Player API is complicated here because iframe is on another domain and no API instance
-    // So progress bar cannot sync accurately — skipping for now
-  }
-
-  // Play a track by index
-  async function playTrack(index) {
-    if (index < 0 || index >= tracks.length) return;
-    currentIndex = index;
-    playerPlaying = true;
-    btnPlay.textContent = '⏸️';
-
-    const track = tracks[index];
-    const query = `${track.title} ${track.artists}`;
-
-    // Search YouTube video id for the track
-    track.youtubeId = track.youtubeId || await searchYouTubeVideo(query);
-    if (!track.youtubeId) {
-      alert(`Could not find YouTube video for "${track.title}"`);
-      return;
-    }
-
-    const embedUrl = `https://www.youtube.com/embed/${track.youtubeId}?autoplay=1&controls=0&disablekb=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3`;
-    youtubeIframe.src = embedUrl;
-
-    // Show player container if hidden
-    playerContainer.style.display = 'flex';
-  }
-
-  // Pause or play toggle
-  function togglePlayPause() {
-    // Reload iframe src to play or pause (hacky workaround)
-    if (playerPlaying) {
-      // Pause by resetting src without autoplay
-      youtubeIframe.src = youtubeIframe.src.replace('autoplay=1', 'autoplay=0');
-      playerPlaying = false;
-      btnPlay.textContent = '▶️';
-    } else {
-      // Play by resetting src with autoplay
-      youtubeIframe.src = youtubeIframe.src.replace('autoplay=0', 'autoplay=1');
-      playerPlaying = true;
-      btnPlay.textContent = '⏸️';
-    }
-  }
-
-  // Play next track
-  function playNext() {
-    let nextIndex = currentIndex + 1;
-    if (nextIndex >= tracks.length) nextIndex = 0;
-    playTrack(nextIndex);
-  }
-
-  // Play previous track
-  function playPrev() {
-    let prevIndex = currentIndex - 1;
-    if (prevIndex < 0) prevIndex = tracks.length -1;
-    playTrack(prevIndex);
-  }
-
-  // Download current track (opens yt1d downloader page)
-  function downloadCurrent() {
-    if (currentIndex < 0 || currentIndex >= tracks.length) return;
-    const track = tracks[currentIndex];
-    if (!track.youtubeId) {
-      alert('No YouTube video found to download');
-      return;
-    }
-    const url = `https://yt1d.com/en307/watch?v=${track.youtubeId}`;
-    window.open(url, '_blank');
-  }
-
-  // Render track list with play and download buttons
-  function renderTrackList() {
+  async function loadPlaylist() {
+    const url = document.getElementById('playlistUrl').value.trim();
+    const trackList = document.getElementById('trackList');
     trackList.innerHTML = '';
-    tracks.forEach((t, i) => {
-      const div = document.createElement('div');
-      div.className = 'track-item';
 
-      const info = document.createElement('div');
-      info.className = 'track-info';
-      info.innerHTML = `<div class="track-title">${t.title}</div><div class="track-artists">${t.artists}</div>`;
-
-      const playBtn = document.createElement('button');
-      playBtn.className = 'play-btn';
-      playBtn.textContent = '▶️';
-      playBtn.onclick = () => playTrack(i);
-
-      const downloadBtn = document.createElement('button');
-      downloadBtn.className = 'download-btn';
-      downloadBtn.textContent = '⬇️';
-      downloadBtn.onclick = async () => {
-        if (!t.youtubeId) {
-          t.youtubeId = await searchYouTubeVideo(t.title + ' ' + t.artists);
-          if (!t.youtubeId) {
-            alert('Could not find YouTube video for download');
-            return;
-          }
-        }
-        const url = `https://yt1d.com/en307/watch?v=${t.youtubeId}`;
-        window.open(url, '_blank');
-      };
-
-      div.appendChild(info);
-      div.appendChild(playBtn);
-      div.appendChild(downloadBtn);
-      trackList.appendChild(div);
-    });
-  }
-
-  loadBtn.onclick = async () => {
-    const rawInput = playlistInput.value.trim();
-    if (!rawInput) {
-      alert('Please enter a Spotify playlist URL or ID');
+    const playlistId = extractPlaylistId(url);
+    if (!playlistId) {
+      alert('Invalid Spotify playlist URL!');
       return;
     }
-    const playlistId = extractPlaylistId(rawInput);
-
-    trackList.innerHTML = 'Loading playlist...';
-    playerContainer.style.display = 'none';
-    youtubeIframe.src = '';
 
     try {
-      const resp = await fetch(`/api/playlist?id=${encodeURIComponent(playlistId)}`);
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        alert('Error loading playlist: ' + errorText);
-        trackList.innerHTML = '';
-        return;
+      document.getElementById('loadBtn').disabled = true;
+      document.getElementById('loadBtn').textContent = 'Loading token...';
+
+      const token = await getToken();
+
+      document.getElementById('loadBtn').textContent = 'Loading tracks...';
+
+      const tracks = await fetchPlaylistTracks(playlistId, token);
+
+      tracks.forEach(item => {
+        if (item.track) {
+          const artists = item.track.artists.map(a => a.name).join(', ');
+          const li = document.createElement('li');
+          li.textContent = `${item.track.name} — ${artists}`;
+          trackList.appendChild(li);
+        }
+      });
+
+      if (tracks.length === 0) {
+        trackList.textContent = 'No tracks found.';
       }
-      const data = await resp.json();
-      tracks = data.tracks || [];
-      if (!tracks.length) {
-        trackList.innerHTML = 'No tracks found in playlist.';
-        return;
-      }
-      renderTrackList();
-    } catch (e) {
-      alert('Error loading playlist: ' + e.message);
-      trackList.innerHTML = '';
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      document.getElementById('loadBtn').disabled = false;
+      document.getElementById('loadBtn').textContent = 'Load Tracks';
     }
-  };
+  }
 
-  btnPlay.onclick = togglePlayPause;
-  btnNext.onclick = playNext;
-  btnPrev.onclick = playPrev;
-  btnDownload.onclick = downloadCurrent;
-
+  document.getElementById('loadBtn').addEventListener('click', loadPlaylist);
 </script>
 
 </body>
