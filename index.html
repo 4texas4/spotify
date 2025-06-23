@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spotify Playlist YouTube Player</title>
+<style>
+  body {
+    background: #121212;
+    color: #eee;
+    font-family: Arial, sans-serif;
+    margin: 0; padding: 1rem;
+  }
+  #input-section {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+  input, button {
+    font-size: 1rem;
+    padding: 0.5rem;
+  }
+  input {
+    width: 300px;
+    border-radius: 5px;
+    border: none;
+    margin-right: 0.5rem;
+  }
+  button {
+    background: #1db954;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:disabled {
+    background: #444;
+    cursor: not-allowed;
+  }
+  #playlist {
+    max-width: 700px;
+    margin: auto;
+  }
+  .track {
+    background: #222;
+    margin: 0.3rem 0;
+    padding: 0.5rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .track.selected {
+    background: #1db954;
+    color: #000;
+  }
+  .track-info {
+    flex: 1;
+  }
+  .track-title {
+    font-weight: bold;
+  }
+  .track-artists {
+    font-size: 0.9rem;
+    color: #bbb;
+  }
+  .download-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    margin-left: 10px;
+  }
+  .download-btn img {
+    width: 24px;
+    height: 24px;
+  }
+  #player-container {
+    margin: 1rem auto;
+    max-width: 700px;
+    text-align: center;
+  }
+  #controls {
+    margin-top: 0.5rem;
+  }
+  #controls button {
+    margin: 0 0.5rem;
+    background: #1db954;
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+  }
+  #progress-container {
+    background: #444;
+    height: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    position: relative;
+  }
+  #progress-bar {
+    background: #1db954;
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+  }
+  #time-display {
+    margin-top: 4px;
+    font-size: 0.9rem;
+    color: #bbb;
+  }
+</style>
+</head>
+<body>
+
+<div id="input-section">
+  <input type="text" id="playlistId" placeholder="Enter Spotify Playlist ID" />
+  <button id="loadBtn">Load Playlist</button>
+</div>
+
+<div id="playlist"></div>
+
+<div id="player-container" style="display:none;">
+  <div id="ytplayer"></div>
+  <div id="controls">
+    <button id="prevBtn">Prev</button>
+    <button id="playPauseBtn">Play</button>
+    <button id="nextBtn">Next</button>
+  </div>
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
+  <div id="time-display">0:00 / 0:00</div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+  const backendUrl = ''; // Set this to your deployed Vercel app URL (empty if same domain)
+
+  let playlistTracks = [];
+  let currentTrackIndex = -1;
+  let player;
+  let isPlaying = false;
+  let progressInterval;
+
+  const playlistDiv = document.getElementById('playlist');
+  const loadBtn = document.getElementById('loadBtn');
+  const playlistInput = document.getElementById('playlistId');
+  const playerContainer = document.getElementById('player-container');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const progressContainer = document.getElementById('progress-container');
+  const progressBar = document.getElementById('progress-bar');
+  const timeDisplay = document.getElementById('time-display');
+
+  loadBtn.onclick = async () => {
+    const pid = playlistInput.value.trim();
+    if (!pid) {
+      alert('Please enter a Spotify playlist ID');
+      return;
+    }
+    loadBtn.disabled = true;
+    loadBtn.textContent = 'Loading...';
+    playlistTracks = [];
+    currentTrackIndex = -1;
+    playlistDiv.innerHTML = '';
+    playerContainer.style.display = 'none';
+
+    try {
+      const resp = await fetch(`${backendUrl}/api/playlist?id=${pid}`);
+      const data = await resp.json();
+      if(data.error) throw new Error(data.error);
+      playlistTracks = data.tracks || [];
+      renderPlaylist();
+      if(playlistTracks.length > 0){
+        currentTrackIndex = 0;
+        loadTrack(currentTrackIndex);
+        playerContainer.style.display = 'block';
+      } else {
+        alert('Playlist is empty or not found');
+      }
+    } catch (e) {
+      alert('Error loading playlist: ' + e.message);
+    }
+
+    loadBtn.disabled = false;
+    loadBtn.textContent = 'Load Playlist';
+  };
+
+  function renderPlaylist(){
+    playlistDiv.innerHTML = '';
+    playlistTracks.forEach((track, i) => {
+      const div = document.createElement('div');
+      div.className = 'track' + (i === currentTrackIndex ? ' selected' : '');
+      div.innerHTML = `
+        <div class="track-info">
+          <div class="track-title">${track.title}</div>
+          <div class="track-artists">${track.artists}</div>
+        </div>
+      `;
+      div.onclick = () => {
+        selectTrack(i);
+      };
+      playlistDiv.appendChild(div);
+    });
+  }
+
+  function selectTrack(i){
+    if(i === currentTrackIndex) return;
+    currentTrackIndex = i;
+    loadTrack(i);
+    renderPlaylist();
+  }
+
+  async function loadTrack(i){
+    if(!player) {
+      player = new YT.Player('ytplayer', {
+        height: '0',
+        width: '0',
+        events: {
+          onStateChange: onPlayerStateChange,
+          onReady: () => {
+            playCurrentTrack();
+          }
+        }
+      });
+    }
+    isPlaying = false;
+    updatePlayPauseButton();
+    const track = playlistTracks[i];
+    const videoId = await searchYouTube(`${track.title} ${track.artists}`);
+    if(videoId){
+      player.loadVideoById(videoId);
+    }
+  }
+
+  async function searchYouTube(query){
+    const corsProxy = 'https://corsproxy.io/?';
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const resp = await fetch(corsProxy + encodeURIComponent(searchUrl));
+    const text = await resp.text();
+
+    const videoIdMatch = text.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+    if(videoIdMatch){
+      return videoIdMatch[1];
+    } else {
+      alert('No YouTube video found for: ' + query);
+      return '';
+    }
+  }
+
+  function onPlayerStateChange(event){
+    if(event.data === YT.PlayerState.ENDED){
+      playNext();
+    } else if(event.data === YT.PlayerState.PLAYING){
+      isPlaying = true;
+      updatePlayPauseButton();
+      startProgressUpdater();
+    } else if(event.data === YT.PlayerState.PAUSED){
+      isPlaying = false;
+      updatePlayPauseButton();
+      stopProgressUpdater();
+    }
+  }
+
+  function playCurrentTrack(){
+    if(player && currentTrackIndex >= 0) {
+      player.playVideo();
+      isPlaying = true;
+      updatePlayPauseButton();
+      startProgressUpdater();
+      renderPlaylist();
+    }
+  }
+
+  function pauseCurrentTrack(){
+    if(player){
+      player.pauseVideo();
+      isPlaying = false;
+      updatePlayPauseButton();
+      stopProgressUpdater();
+    }
+  }
+
+  playPauseBtn.onclick = () => {
+    if(isPlaying) pauseCurrentTrack();
+    else playCurrentTrack();
+  };
+
+  prevBtn.onclick = () => {
+    if(currentTrackIndex > 0){
+      selectTrack(currentTrackIndex - 1);
+    }
+  };
+
+  nextBtn.onclick = () => {
+    if(currentTrackIndex < playlistTracks.length - 1){
+      selectTrack(currentTrackIndex + 1);
+    }
+  };
+
+  progressContainer.onclick = (e) => {
+    if(!player) return;
+    const rect = progressContainer.getBoundingClientRect();
+    const clickPos = e.clientX - rect.left;
+    const ratio = clickPos / rect.width;
+    const duration = player.getDuration();
+    player.seekTo(duration * ratio, true);
+  };
+
+  function startProgressUpdater(){
+    stopProgressUpdater();
+    progressInterval = setInterval(() => {
+      if(!player || !isPlaying) return;
+      const current = player.getCurrentTime();
+      const duration = player.getDuration();
+      if(duration > 0){
+        const percent = (current / duration) * 100;
+        progressBar.style.width = percent + '%';
+        timeDisplay.textContent = formatTime(current) + ' / ' + formatTime(duration);
+      }
+    }, 500);
+  }
+
+  function stopProgressUpdater(){
+    if(progressInterval) clearInterval(progressInterval);
+  }
+
+  function formatTime(seconds){
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function updatePlayPauseButton(){
+    playPauseBtn.textContent = isPlaying ? 'Pause' : 'Play';
+  }
+</script>
+
+</body>
+</html>
