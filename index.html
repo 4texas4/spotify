@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Music Player</title>
+  <title>Spotify Playlist → YouTube Player</title>
   <style>
     body {
       margin: 0;
@@ -33,14 +33,14 @@
     }
     #search-container input {
       padding: 1rem;
-      width: 350px;
-      font-size: 1.4rem;
+      width: 400px;
+      font-size: 1.2rem;
       border-radius: 8px;
       border: none;
     }
     #search-container button {
       padding: 1rem 2rem;
-      font-size: 1.4rem;
+      font-size: 1.2rem;
       margin-left: 10px;
       border-radius: 8px;
       border: none;
@@ -48,7 +48,7 @@
       color: #fff;
       cursor: pointer;
     }
-    #results {
+    #results, #players {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
@@ -116,10 +116,7 @@
     .time {
       font-size: 1rem;
     }
-    .close-btn,
-    .fullscreen-btn,
-    .download-btn,
-    .refresh-btn {
+    .close-btn, .fullscreen-btn, .download-btn, .refresh-btn {
       position: absolute;
       top: 12px;
       background: rgba(0, 0, 0, 0.7);
@@ -143,10 +140,9 @@
 </head>
 <body>
   <div id="search-container" class="centered">
-    <input type="text" id="query" placeholder="Search for a song..." />
-    <button onclick="searchSongs()">Search</button>
+    <input type="text" id="playlistUrl" placeholder="Enter Spotify playlist URL" />
+    <button onclick="fetchPlaylist()">Load Playlist</button>
   </div>
-  <div id="results"></div>
   <div id="players"></div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
@@ -155,103 +151,53 @@
     let playerBoxes = [];
 
     function updateLayoutState() {
-      const hasPlayers = document.getElementById("players").children.length > 0;
-      const hasResults = document.getElementById("results").innerHTML.trim() !== "";
       const container = document.getElementById("search-container");
-
-      if (!hasPlayers && !hasResults) {
-        container.classList.add("centered");
-        container.classList.remove("top");
-      } else {
+      const hasPlayers = document.getElementById("players").children.length > 0;
+      if (hasPlayers) {
         container.classList.remove("centered");
         container.classList.add("top");
+      } else {
+        container.classList.add("centered");
+        container.classList.remove("top");
       }
     }
 
-    // NEW: Extract first videoId from ytInitialData JSON
-    function extractFirstVideoIdFromHTML(html) {
-      const jsonStrMatch = html.match(/window\["ytInitialData"\]\s*=\s*(\{.+?\});<\/script>/s);
-      if (!jsonStrMatch) return null;
+    async function fetchPlaylist() {
+      const url = document.getElementById("playlistUrl").value;
+      const idMatch = url.match(/playlist\/([a-zA-Z0-9]+)/);
+      if (!idMatch) return alert("Invalid Spotify playlist URL.");
+      const playlistId = idMatch[1];
 
-      let data;
-      try {
-        data = JSON.parse(jsonStrMatch[1]);
-      } catch {
-        return null;
+      const tokenRes = await fetch("/api/token");
+      const { access_token } = await tokenRes.json();
+
+      const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`, {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      const data = await res.json();
+      const tracks = data.items.map(item => {
+        const t = item.track;
+        return `${t.name} ${t.artists.map(a => a.name).join(" ")} lyrics`;
+      });
+
+      for (let i = 0; i < tracks.length; i++) {
+        searchAndOpen(tracks[i], i === 0); // auto-play first only
       }
-
-      function findVideoRenderer(obj) {
-        if (typeof obj !== 'object' || obj === null) return null;
-        if (obj.videoRenderer && obj.videoRenderer.videoId) {
-          return obj.videoRenderer.videoId;
-        }
-        for (const key in obj) {
-          const result = findVideoRenderer(obj[key]);
-          if (result) return result;
-        }
-        return null;
-      }
-
-      return findVideoRenderer(data);
     }
 
-    async function searchSongs() {
-      const query = document.getElementById("query").value.trim();
-      if (!query) return;
-
+    function searchAndOpen(query, autoplay) {
       const cors = 'https://corsproxy.io/?';
-      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}+lyrics`;
-
-      document.getElementById("results").innerHTML = "Loading...";
-
-      try {
-        const res = await fetch(cors + url);
-        if (!res.ok) throw new Error("Failed to fetch YouTube search results");
-        const html = await res.text();
-
-        // Extract first videoId with new method
-        const firstVideoId = extractFirstVideoIdFromHTML(html);
-        if (!firstVideoId) {
-          document.getElementById("results").innerHTML = "No videos found.";
-          updateLayoutState();
-          return;
-        }
-
-        // Now extract up to 8 videos as before for showing options
-        const videoRegex = /"videoRenderer":\s*{(.*?)"videoId":"(.*?)".*?"title":\{"runs":\[\{"text":"(.*?)"\}/gs;
-        let match;
-        const results = [];
-
-        while ((match = videoRegex.exec(html)) !== null) {
-          const [_, block, id, title] = match;
-          if (!results.find(r => r.id === id)) {
-            results.push({ id, title });
+      const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+      fetch(cors + url)
+        .then(res => res.text())
+        .then(html => {
+          const match = html.match(/"videoRenderer":\s*{[^}]*?"videoId":"(.*?)".*?"title":\{"runs":\[\{"text":"(.*?)"\}/s);
+          if (match) {
+            const [_, videoId, title] = match;
+            const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+            openPlayer(videoId, title, thumb, autoplay);
           }
-        }
-
-        // Show 8 results as clickable options, but highlight the firstVideoId as well
-        let htmlOut = results.slice(0, 8).map(res => {
-          const thumb = `https://img.youtube.com/vi/${res.id}/hqdefault.jpg`;
-          const highlight = res.id === firstVideoId ? 'style="border: 3px solid #1db954; border-radius: 10px;"' : '';
-          return `
-            <div class="video" ${highlight} onclick="openPlayer('${res.id}', \`${res.title}\`, '${thumb}'); document.getElementById('results').innerHTML = '';">
-              <img src="${thumb}" />
-              <p>${res.title}</p>
-            </div>
-          `;
-        }).join('');
-
-        document.getElementById("results").innerHTML = htmlOut || "No results found.";
-        updateLayoutState();
-
-        // Auto-play the first video found
-        openPlayer(firstVideoId, "Playing first search result", `https://img.youtube.com/vi/${firstVideoId}/hqdefault.jpg`);
-
-      } catch (err) {
-        console.error(err);
-        document.getElementById("results").innerHTML = "Error loading videos.";
-        updateLayoutState();
-      }
+        });
     }
 
     function pauseAllExcept(id) {
@@ -265,17 +211,14 @@
       });
     }
 
-    function openPlayer(videoId, title, thumb) {
-      // Prevent duplicate players for the same videoId
-      if (playerBoxes.some(p => p.videoId === videoId)) return;
-
+    function openPlayer(videoId, title, thumb, autoplay) {
       const playerId = `ytplayer${ytPlayerCounter++}`;
       const box = document.createElement("div");
       box.className = "player-box";
       box.style.backgroundImage = `url(${thumb})`;
 
       box.innerHTML = `
-        <button class="close-btn" onclick="removePlayer('${playerId}')">×</button>
+        <button class="close-btn" onclick="this.parentElement.remove(); updateLayoutState();">×</button>
         <button class="refresh-btn" onclick="refreshPlayer('${playerId}')">⟳</button>
         <button class="download-btn" onclick="downloadMP3('${videoId}', \`${title}\`)">⤓</button>
         <button class="fullscreen-btn" onclick="toggleFullscreen(this.parentElement)">⛶</button>
@@ -296,18 +239,15 @@
 
       document.getElementById("players").appendChild(box);
 
-      const autoplay = !isAnyPlayerPlaying();
-
       const player = new YT.Player(playerId, {
         height: "0",
         width: "0",
         videoId,
-        playerVars: { autoplay: autoplay ? 1 : 0, controls: 0, loop: 0 },
+        playerVars: { autoplay: autoplay ? 1 : 0, controls: 0 },
         events: {
           onReady: (e) => {
             const p = {
               id: playerId,
-              videoId: videoId,
               player: e.target,
               box: box,
               bar: document.getElementById(`bar-${playerId}`),
@@ -330,15 +270,6 @@
       updateLayoutState();
     }
 
-    function removePlayer(playerId) {
-      const index = playerBoxes.findIndex(p => p.id === playerId);
-      if (index === -1) return;
-      playerBoxes[index].player.destroy();
-      playerBoxes[index].box.remove();
-      playerBoxes.splice(index, 1);
-      updateLayoutState();
-    }
-
     function refreshPlayer(playerId) {
       const p = playerBoxes.find(b => b.id === playerId);
       if (!p) return;
@@ -348,19 +279,13 @@
       pauseAllExcept(playerId);
     }
 
-    function isAnyPlayerPlaying() {
-      return playerBoxes.some(p => p.isPlaying);
-    }
-
     function moveToNextBox(currentId) {
-      const currentIndex = playerBoxes.findIndex(p => p.id === currentId);
-      const next = playerBoxes[currentIndex + 1];
+      const index = playerBoxes.findIndex(p => p.id === currentId);
+      const next = playerBoxes[index + 1];
       if (next) {
-        const isFullscreen = document.fullscreenElement;
         pauseAllExcept(next.id);
         next.player.playVideo();
         next.isPlaying = true;
-        if (isFullscreen) toggleFullscreen(next.box);
       }
     }
 
@@ -371,7 +296,7 @@
     }
 
     function updateProgress(box) {
-      if (!box || !box.player?.getDuration) return;
+      if (!box?.player?.getDuration) return;
       const t = box.player.getCurrentTime();
       const d = box.player.getDuration();
       if (d > 0) {
@@ -404,11 +329,8 @@
 
     function seek(e, id) {
       const box = playerBoxes.find(b => b.id === id);
-      if (!box) return;
-      const container = e.currentTarget;
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percent = x / container.offsetWidth;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
       const duration = box.player.getDuration();
       box.player.seekTo(duration * percent, true);
     }
