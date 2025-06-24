@@ -1,5 +1,3 @@
-// api/token.js
-
 const clientId = '3802011aaa7c42229602a521e35c33de';
 const clientSecret = '6caba9949e724308b7bcffd0a91de9b3';
 
@@ -10,7 +8,6 @@ export default async function handler(req, res) {
   const now = Date.now();
 
   if (cachedToken && now < tokenExpireTime) {
-    // Return cached token if still valid
     return res.status(200).json({ access_token: cachedToken });
   }
 
@@ -33,7 +30,7 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     cachedToken = data.access_token;
-    tokenExpireTime = now + (data.expires_in * 1000) - 60000; // Refresh 1 min early
+    tokenExpireTime = now + (data.expires_in * 1000) - 60000; // refresh 1 min early
 
     res.status(200).json({ access_token: cachedToken });
   } catch (err) {
