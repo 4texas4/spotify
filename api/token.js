@@ -7,6 +7,15 @@ let tokenExpireTime = 0;
 export default async function handler(req, res) {
   const now = Date.now();
 
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
   if (cachedToken && now < tokenExpireTime) {
     return res.status(200).json({ access_token: cachedToken });
   }
@@ -30,7 +39,7 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     cachedToken = data.access_token;
-    tokenExpireTime = now + (data.expires_in * 1000) - 60000; // refresh 1 min early
+    tokenExpireTime = now + (data.expires_in * 1000) - 60000;
 
     res.status(200).json({ access_token: cachedToken });
   } catch (err) {
