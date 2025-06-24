@@ -2,148 +2,375 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Spotify → YouTube Audio Playlist</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Spotify Playlist YouTube Player</title>
   <style>
-    body { background:#111; color:#fff; font-family:sans-serif; padding:1rem; text-align:center; }
-    input, button { padding:0.6rem; font-size:1rem; border:none; border-radius:6px; margin:0.3rem }
-    button { background:#1db954; color:#000; cursor:pointer; }
-    #playlist { margin:1rem auto; max-width:600px; text-align:left; }
-    .track { padding:0.5rem; cursor:pointer; border-bottom:1px solid #333; }
-    .track.current { background:#1db954; color:#000; }
-    #controls { margin-top:1rem; }
-    #controls button { margin:0 0.5rem; }
-    #embed { width:audio; height:0px; visibility:hidden; }
+    body {
+      background: #121212;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin: 0; padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+    input[type="text"] {
+      width: 80vw;
+      max-width: 600px;
+      padding: 0.75rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: none;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: none;
+      background: #1db954;
+      color: black;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+    #status {
+      margin: 1rem 0;
+      min-height: 24px;
+    }
+    #track-list {
+      max-width: 600px;
+      width: 100%;
+      margin-top: 1rem;
+      overflow-y: auto;
+      max-height: 300px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 0.5rem;
+    }
+    .track {
+      padding: 0.5rem;
+      border-bottom: 1px solid #333;
+      cursor: pointer;
+    }
+    .track.active {
+      background-color: #1db954;
+      color: black;
+    }
+    #player-controls {
+      margin-top: 1rem;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    #progress-container {
+      flex-grow: 1;
+      background: #333;
+      height: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      position: relative;
+    }
+    #progress-bar {
+      height: 100%;
+      background: #1db954;
+      width: 0%;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
-  <h2>Spotify Playlist → YouTube Audio</h2>
-  <input id="spotifyUrl" placeholder="Spotify playlist link" size="50"/>
-  <button onclick="loadPlaylist()">Load</button>
 
-  <div id="playlist"></div>
+  <h1>Spotify Playlist to YouTube Player</h1>
 
-  <div id="controls" style="display:none;">
-    <button onclick="prevTrack()">⏮ Prev</button>
-    <button onclick="togglePlay()">⏯ Play/Pause</button>
-    <button onclick="nextTrack()">⏭ Next</button>
-    <button onclick="download()">⬇ Download</button>
-    <div id="current"></div>
+  <input type="text" id="spotify-url" placeholder="Paste Spotify playlist URL here" />
+  <button id="load-playlist">Load Playlist</button>
+
+  <div id="status"></div>
+
+  <div id="track-list"></div>
+
+  <div id="player-controls" style="display:none;">
+    <button id="btn-prev">⏮️</button>
+    <button id="btn-play-pause">▶️</button>
+    <button id="btn-next">⏭️</button>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="time-display" style="width: 80px; text-align: right;">0:00 / 0:00</div>
   </div>
 
-  <div id="embed"></div>
-
+  <!-- YouTube iframe API -->
   <script src="https://www.youtube.com/iframe_api"></script>
+
   <script>
-    let tracks = [], current = 0, player, isPlaying = false;
-    const cors = 'https://corsproxy.io/?';
+    let player;
+    let playlist = [];
+    let currentIndex = -1;
+    let isPlaying = false;
+    let progressInterval;
 
-    async function loadPlaylist() {
-      const url = document.getElementById('spotifyUrl').value.trim();
-      const m = url.match(/playlist\/([A-Za-z0-9]+)(\?|$)/);
-      if (!m) return alert('Invalid Spotify link');
-      document.getElementById('playlist').innerHTML = 'Loading...';
+    const statusEl = document.getElementById('status');
+    const trackListEl = document.getElementById('track-list');
+    const spotifyInput = document.getElementById('spotify-url');
+    const loadBtn = document.getElementById('load-playlist');
 
+    const btnPrev = document.getElementById('btn-prev');
+    const btnPlayPause = document.getElementById('btn-play-pause');
+    const btnNext = document.getElementById('btn-next');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const timeDisplay = document.getElementById('time-display');
+    const playerControls = document.getElementById('player-controls');
+
+    loadBtn.onclick = async () => {
+      const url = spotifyInput.value.trim();
+      if (!url) {
+        alert('Please enter a Spotify playlist URL');
+        return;
+      }
+      resetPlayer();
+      statusEl.textContent = "Fetching Spotify tracks...";
       try {
-        const token = (await fetch('/api/token')).json().then(r => r.access_token);
-        const res = await fetch(`https://api.spotify.com/v1/playlists/${m[1]}/tracks?limit=100`, {
-          headers: { Authorization: 'Bearer ' + await token }
+        playlist = await fetchSpotifyPlaylist(url);
+        if (playlist.length === 0) {
+          statusEl.textContent = "No tracks found in playlist.";
+          return;
+        }
+        statusEl.textContent = `Found ${playlist.length} tracks. Searching YouTube for videos...`;
+        await fetchYouTubeVideosForPlaylist();
+        renderTrackList();
+        currentIndex = 0;
+        loadYouTubeVideo(playlist[currentIndex].videoId);
+        playerControls.style.display = "flex";
+        updateActiveTrack();
+        statusEl.textContent = "Ready to play!";
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = "Error: " + e.message;
+      }
+    };
+
+    function resetPlayer() {
+      if (player) {
+        player.destroy();
+        player = null;
+      }
+      playlist = [];
+      currentIndex = -1;
+      isPlaying = false;
+      clearInterval(progressInterval);
+      progressBar.style.width = '0%';
+      timeDisplay.textContent = '0:00 / 0:00';
+      trackListEl.innerHTML = '';
+      playerControls.style.display = 'none';
+      statusEl.textContent = '';
+      btnPlayPause.textContent = '▶️';
+    }
+
+    async function fetchSpotifyPlaylist(playlistUrl) {
+      // Extract playlist ID from URL
+      const regex = /playlist\/([a-zA-Z0-9]+)/;
+      const match = playlistUrl.match(regex);
+      if (!match) throw new Error("Invalid Spotify playlist URL");
+
+      const playlistId = match[1];
+
+      // Get Spotify access token from your backend
+      const tokenRes = await fetch('/api/token');
+      if (!tokenRes.ok) throw new Error("Failed to get Spotify token");
+      const { access_token } = await tokenRes.json();
+
+      // Fetch playlist tracks with pagination (max 100 per request)
+      let tracks = [];
+      let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+
+      while(nextUrl) {
+        const res = await fetch(nextUrl, {
+          headers: { Authorization: `Bearer ${access_token}` }
         });
-        const js = await res.json();
-        tracks = js.items.map(it => it.track)
-          .filter(t => t && t.name && t.artists.length)
-          .map(t => ({ q: `${t.name} ${t.artists[0].name}` }));
-
-        const container = document.getElementById('playlist');
-        container.innerHTML = tracks.map((t,i) =>
-          `<div class="track" onclick="play(${i})">${t.q}</div>`).join('');
-
-        if (tracks.length) {
-          document.getElementById('controls').style.display = 'block';
-          play(0);
+        if (!res.ok) {
+          let errText = await res.text();
+          throw new Error("Failed to fetch Spotify playlist tracks: " + errText);
         }
-      } catch (e) {
-        alert('Failed to load: ' + e.message);
+        const data = await res.json();
+        tracks = tracks.concat(data.items);
+        nextUrl = data.next;
       }
+
+      // Map to array of {title, artist}
+      return tracks
+        .filter(t => t.track && !t.track.is_local)
+        .map(t => ({
+          title: t.track.name,
+          artist: t.track.artists.map(a => a.name).join(", "),
+          videoId: null // placeholder, to fill after YouTube search
+        }));
     }
 
-    async function searchFirstVideo(q) {
-      const html = await fetch(cors + `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`)
-        .then(r=>r.text());
-      const jm = html.match(/ytInitialData"\s*:\s*(\{.*?\})\s*;/s);
-      if (!jm) throw 'YT data not found';
-      const data = JSON.parse(jm[1]);
-      const conts = data.contents.twoColumnSearchResultsRenderer.primaryContents
-        .sectionListRenderer.contents;
-      for (const s of conts) {
-        const items = s.itemSectionRenderer?.contents;
-        if (!items) continue;
-        for (const it of items) {
-          const vr = it.videoRenderer;
-          if (vr && vr.videoId) return vr.videoId;
-        }
-      }
-      throw 'No video found';
-    }
+    async function fetchYouTubeVideosForPlaylist() {
+      const corsProxy = "https://corsproxy.io/?";
+      for (let i = 0; i < playlist.length; i++) {
+        const track = playlist[i];
+        const query = encodeURIComponent(`${track.title} ${track.artist} lyrics`);
+        const url = `https://www.youtube.com/results?search_query=${query}`;
+        try {
+          statusEl.textContent = `Searching YouTube for "${track.title}" by ${track.artist} (${i + 1}/${playlist.length})`;
+          const res = await fetch(corsProxy + url);
+          const html = await res.text();
 
-    function play(i) {
-      if (i < 0 || i >= tracks.length) return;
-      current = i;
-      updatePlaylist();
-      startPlay();
-    }
-
-    function updatePlaylist() {
-      document.querySelectorAll('.track').forEach((d, idx) =>
-        d.classList.toggle('current', idx === current));
-    }
-
-    async function startPlay() {
-      const q = tracks[current].q;
-      document.getElementById('current').textContent = 'Loading: ' + q;
-      try {
-        const vid = await searchFirstVideo(q);
-        if (player) player.loadVideoById(vid);
-        else initPlayer(vid);
-        isPlaying = true;
-        updatePlayPause();
-      } catch (e) {
-        alert('Play error: ' + e);
-      }
-    }
-
-    function initPlayer(vid) {
-      player = new YT.Player('embed', {
-        videoId: vid,
-        playerVars: { autoplay:1, controls:0 },
-        events: {
-          onReady: e => e.target.playVideo(),
-          onStateChange: e => {
-            if (e.data === YT.PlayerState.PLAYING) isPlaying = true;
-            if (e.data === YT.PlayerState.PAUSED) isPlaying = false;
-            if (e.data === YT.PlayerState.ENDED) nextTrack();
+          // Extract videoId from youtube search results page HTML
+          // We use a regex that captures videoRenderer blocks with videoId and title
+          const videoIdMatch = /"videoRenderer":\s*{.*?"videoId":"(.*?)"/.exec(html);
+          if (videoIdMatch) {
+            track.videoId = videoIdMatch[1];
+          } else {
+            console.warn(`No video found for "${track.title}"`);
+            track.videoId = null;
           }
+        } catch(e) {
+          console.error(`Error searching YouTube for "${track.title}":`, e);
+          track.videoId = null;
         }
+      }
+      // Filter out tracks with no videoId found
+      playlist = playlist.filter(t => t.videoId);
+      if (playlist.length === 0) throw new Error("No YouTube videos found for any track");
+    }
+
+    function renderTrackList() {
+      trackListEl.innerHTML = '';
+      playlist.forEach((t, i) => {
+        const div = document.createElement('div');
+        div.className = 'track';
+        div.textContent = `${t.title} — ${t.artist}`;
+        div.onclick = () => {
+          currentIndex = i;
+          loadYouTubeVideo(t.videoId);
+          updateActiveTrack();
+        };
+        trackListEl.appendChild(div);
       });
     }
 
-    function togglePlay() {
-      if (!player) return;
-      if (isPlaying) player.pauseVideo();
-      else player.playVideo();
+    function updateActiveTrack() {
+      const tracks = trackListEl.querySelectorAll('.track');
+      tracks.forEach((el, i) => {
+        el.classList.toggle('active', i === currentIndex);
+      });
     }
 
-    function nextTrack() { play(current+1); }
-    function prevTrack() { play(current-1); }
-    function updatePlayPause() {
-      document.querySelector('#controls button:nth-child(2)').textContent = isPlaying ? '⏸ Pause' : '▶️ Play';
-      document.getElementById('current').textContent = (isPlaying ? 'Playing: ' : 'Paused: ') + tracks[current].q;
+    // YouTube Player API
+    function onYouTubeIframeAPIReady() {
+      // no-op here, we create player dynamically
     }
-    function download() {
+
+    function loadYouTubeVideo(videoId) {
+      if (player) {
+        player.loadVideoById(videoId);
+      } else {
+        player = new YT.Player('youtube-player', {
+          height: '0',
+          width: '0',
+          videoId: videoId,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            modestbranding: 1,
+            rel: 0,
+            showinfo: 0
+          },
+          events: {
+            onReady: (e) => {
+              e.target.playVideo();
+              isPlaying = true;
+              btnPlayPause.textContent = '⏸';
+              startProgressUpdater();
+            },
+            onStateChange: (e) => {
+              if (e.data === YT.PlayerState.ENDED) {
+                playNext();
+              }
+            }
+          }
+        });
+      }
+      updateActiveTrack();
+    }
+
+    btnPlayPause.onclick = () => {
       if (!player) return;
-      const vid = player.getVideoData().video_id;
-      window.open(`https://yt1d.com/en307/watch?v=${vid}`, '_blank');
+      if (isPlaying) {
+        player.pauseVideo();
+        btnPlayPause.textContent = '▶️';
+      } else {
+        player.playVideo();
+        btnPlayPause.textContent = '⏸';
+      }
+      isPlaying = !isPlaying;
+    };
+
+    btnNext.onclick = () => {
+      playNext();
+    };
+
+    btnPrev.onclick = () => {
+      if (currentIndex > 0) {
+        currentIndex--;
+        loadYouTubeVideo(playlist[currentIndex].videoId);
+      }
+    };
+
+    progressContainer.onclick = (e) => {
+      if (!player) return;
+      const rect = progressContainer.getBoundingClientRect();
+      const clickPos = e.clientX - rect.left;
+      const clickPercent = clickPos / rect.width;
+      const duration = player.getDuration();
+      player.seekTo(duration * clickPercent, true);
+    };
+
+    function playNext() {
+      if (currentIndex + 1 < playlist.length) {
+        currentIndex++;
+        loadYouTubeVideo(playlist[currentIndex].videoId);
+      } else {
+        // playlist ended
+        statusEl.textContent = "Playlist ended.";
+        btnPlayPause.textContent = '▶️';
+        isPlaying = false;
+        clearInterval(progressInterval);
+        progressBar.style.width = '0%';
+        timeDisplay.textContent = '0:00 / 0:00';
+      }
+    }
+
+    function startProgressUpdater() {
+      clearInterval(progressInterval);
+      progressInterval = setInterval(() => {
+        if (!player || !isPlaying) return;
+        const current = player.getCurrentTime();
+        const duration = player.getDuration();
+        if (duration > 0) {
+          const percent = (current / duration) * 100;
+          progressBar.style.width = percent + '%';
+          timeDisplay.textContent = formatTime(current) + " / " + formatTime(duration);
+        }
+      }, 500);
+    }
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m}:${s.toString().padStart(2, '0')}`;
     }
   </script>
+
+  <!-- YouTube Player div -->
+  <div id="youtube-player" style="display:none;"></div>
+
 </body>
 </html>
