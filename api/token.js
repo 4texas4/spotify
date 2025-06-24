@@ -1,17 +1,42 @@
+// api/token.js
+
+const clientId = '3802011aaa7c42229602a521e35c33de';
+const clientSecret = '6caba9949e724308b7bcffd0a91de9b3';
+
+let cachedToken = null;
+let tokenExpireTime = 0;
+
 export default async function handler(req, res) {
-  const client_id = '3802011aaa7c42229602a521e35c33de';
-  const client_secret = '6caba9949e724308b7bcffd0a91de9b3';
-  const creds = Buffer.from(`${client_id}:${client_secret}`).toString('base64');
+  const now = Date.now();
 
-  const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${creds}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'grant_type=client_credentials'
-  });
+  if (cachedToken && now < tokenExpireTime) {
+    // Return cached token if still valid
+    return res.status(200).json({ access_token: cachedToken });
+  }
 
-  const data = await tokenRes.json();
-  res.status(200).json(data);
+  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authString}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'grant_type=client_credentials'
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return res.status(response.status).json({ error });
+    }
+
+    const data = await response.json();
+    cachedToken = data.access_token;
+    tokenExpireTime = now + (data.expires_in * 1000) - 60000; // Refresh 1 min early
+
+    res.status(200).json({ access_token: cachedToken });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get token' });
+  }
 }
