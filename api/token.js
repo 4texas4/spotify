@@ -23,7 +23,6 @@ export default async function handler(req, res) {
     }
 
     const data = await tokenRes.json();
-    // Return only access_token and expires_in to client
     res.status(200).json({
       access_token: data.access_token,
       expires_in: data.expires_in,
