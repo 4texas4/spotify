@@ -1,358 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Spotify Playlist to YouTube Player</title>
-  <style>
-    body {
-      margin: 0; background: #000; color: #fff; font-family: sans-serif; overflow-x: hidden;
-    }
-    #input-container {
-      text-align: center; padding: 1rem; position: relative; z-index: 10;
-    }
-    #input-container input {
-      width: 350px; padding: 1rem; font-size: 1.2rem; border-radius: 8px; border: none;
-    }
-    #input-container button {
-      padding: 1rem 2rem; font-size: 1.2rem; margin-left: 10px; border-radius: 8px; border: none;
-      background: #444; color: #fff; cursor: pointer;
-    }
-    #playlist-status {
-      text-align: center; margin-top: 1rem; font-weight: bold;
-    }
-    #players {
-      margin: 2rem auto; max-width: 800px; width: 90%;
-    }
-    .player-box {
-      position: relative; background-size: cover; background-position: center; background-repeat: no-repeat;
-      border-radius: 20px; padding: 2rem; margin-bottom: 2rem; color: #fff;
-      box-shadow: 0 0 40px rgba(255,255,255,0.15);
-      overflow: hidden;
-    }
-    .overlay {
-      background: rgba(0, 0, 0, 0.75); padding: 1rem; border-radius: 20px;
-    }
-    .controls {
-      display: flex; justify-content: center; gap: 20px; margin-top: 1rem;
-    }
-    .controls button {
-      background: #222; border: none; padding: 10px 16px; font-size: 1.2rem; border-radius: 8px; cursor: pointer; color: white;
-    }
-    .progress-container {
-      width: 100%; height: 10px; background: #555; border-radius: 5px; margin: 1rem 0; cursor: pointer;
-    }
-    .progress-bar {
-      height: 100%; width: 0%; background: #1db954; border-radius: 5px;
-    }
-    .time {
-      font-size: 1rem;
-    }
-    .close-btn,
-    .fullscreen-btn,
-    .download-btn,
-    .refresh-btn {
-      position: absolute; top: 12px; background: rgba(0, 0, 0, 0.7);
-      border: none; color: white; font-size: 1.2rem; cursor: pointer; border-radius: 8px;
-      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-      transition: background 0.2s ease;
-    }
-    .close-btn { right: 16px; }
-    .refresh-btn { right: 68px; }
-    .download-btn { right: 120px; }
-    .fullscreen-btn { right: 172px; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spotify Playlist Viewer with YouTube Download Links</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    max-width: 800px;
+    margin: auto;
+    background: #121212;
+    color: #eee;
+  }
+  input, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    font-size: 1rem;
+    box-sizing: border-box;
+    border-radius: 5px;
+    border: none;
+  }
+  input {
+    background: #222;
+    color: #eee;
+  }
+  button {
+    background: #1db954;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover {
+    background: #17a44d;
+  }
+  ul {
+    list-style: none;
+    padding-left: 0;
+  }
+  li {
+    padding: 10px 5px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  li:last-child {
+    border-bottom: none;
+  }
+  .track-info {
+    max-width: 75%;
+  }
+  .track-name {
+    font-weight: bold;
+  }
+  .artist-name {
+    color: #aaa;
+  }
+  .download-btn {
+    background: #1db954;
+    border: none;
+    color: white;
+    padding: 6px 0;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .download-btn img {
+    max-width: 28px;
+    max-height: 28px;
+    user-select: none;
+    pointer-events: none;
+  }
+  .download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+</style>
 </head>
 <body>
 
-  <div id="input-container">
-    <input type="text" id="playlist-url" placeholder="Enter Spotify Playlist URL" />
-    <button onclick="loadPlaylist()">Load Playlist</button>
-    <div id="playlist-status"></div>
-  </div>
+<h2>Spotify Public Playlist Viewer with YouTube Download</h2>
 
-  <div id="players"></div>
+<label for="playlistUrl">Spotify Playlist URL:</label>
+<input type="text" id="playlistUrl" placeholder="Paste a public Spotify playlist URL here" />
 
-  <script src="https://www.youtube.com/iframe_api"></script>
-  <script>
-    let ytPlayerCounter = 0;
-    let playerBoxes = [];
+<button id="loadBtn">Load Playlist</button>
 
-    function updateLayoutState() {
-      const container = document.getElementById("input-container");
-      const hasPlayers = playerBoxes.length > 0;
-      if (!hasPlayers) {
-        container.style.position = 'relative';
-        container.style.top = 'auto';
-        container.style.left = 'auto';
-        container.style.transform = 'none';
-      } else {
-        container.style.position = 'fixed';
-        container.style.top = '0';
-        container.style.left = '50%';
-        container.style.transform = 'translateX(-50%)';
-        container.style.background = '#000';
-        container.style.width = '100%';
-        container.style.padding = '1rem 0';
-        container.style.zIndex = '9999';
-      }
-    }
+<div id="playlistInfo"></div>
 
-    async function loadPlaylist() {
-      const url = document.getElementById("playlist-url").value.trim();
-      if (!url) return alert("Please enter a Spotify playlist URL.");
+<script>
+  const playlistUrlInput = document.getElementById('playlistUrl');
+  const loadBtn = document.getElementById('loadBtn');
+  const playlistInfo = document.getElementById('playlistInfo');
 
-      const idMatch = url.match(/playlist\/([a-zA-Z0-9]+)(\?|$)/);
-      if (!idMatch) return alert("Invalid Spotify playlist URL.");
+  function extractPlaylistId(url) {
+    let match = url.match(/playlist\/([a-zA-Z0-9]+)(\?|$)/);
+    if (match) return match[1];
+    match = url.match(/spotify:playlist:([a-zA-Z0-9]+)/);
+    if (match) return match[1];
+    return null;
+  }
 
-      const playlistId = idMatch[1];
-      const statusDiv = document.getElementById("playlist-status");
-      statusDiv.textContent = "Fetching Spotify playlist...";
+  async function getSpotifyToken() {
+    const res = await fetch('/api/token');
+    if (!res.ok) throw new Error('Failed to fetch Spotify token');
+    const data = await res.json();
+    return data.access_token;
+  }
 
-      try {
-        // Get Spotify access token from your backend
-        const tokenRes = await fetch('/api/token');
-        const tokenData = await tokenRes.json();
-        if (!tokenData.access_token) throw new Error("Failed to get Spotify access token");
+  async function searchYouTubeVideo(query) {
+    const proxyUrl = 'https://corsproxy.io/?';
+    const searchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
 
-        // Fetch tracks from Spotify playlist
-        let tracks = [];
-        let nextURL = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`;
-        while (nextURL) {
-          const res = await fetch(nextURL, {
-            headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-          });
-          const data = await res.json();
-          if (data.error) throw new Error(data.error.message || "Spotify API error");
-          tracks.push(...data.items);
-          nextURL = data.next;
-        }
+    try {
+      const res = await fetch(proxyUrl + searchUrl);
+      const text = await res.text();
 
-        statusDiv.textContent = `Found ${tracks.length} tracks. Searching YouTube...`;
-        clearPlayers();
+      const jsonMatch = text.match(/var ytInitialData = (.*?);\s*<\/script>/s);
+      if (!jsonMatch) return null;
 
-        // For each track, search YouTube and open player
-        for (let i = 0; i < tracks.length; i++) {
-          const t = tracks[i].track;
-          const query = `${t.name} ${t.artists.map(a => a.name).join(" ")} lyrics`;
-          statusDiv.textContent = `Searching YouTube for: ${query} (${i+1}/${tracks.length})`;
+      const ytInitialData = JSON.parse(jsonMatch[1]);
 
-          try {
-            const videoId = await searchYouTube(query);
-            if (videoId) {
-              openPlayer(videoId, `${t.name} - ${t.artists.map(a => a.name).join(", ")}`, `https://i.scdn.co/image/${t.album.images[0]?.url ? btoa(t.album.images[0].url) : ''}`);
-            } else {
-              console.warn(`No video found for: ${query}`);
-            }
-          } catch(e) {
-            console.warn(`Error searching YouTube for ${query}:`, e);
+      const contents = ytInitialData.contents
+        ?.twoColumnSearchResultsRenderer
+        ?.primaryContents
+        ?.sectionListRenderer
+        ?.contents;
+
+      if (!contents) return null;
+
+      for (const section of contents) {
+        const itemSection = section.itemSectionRenderer;
+        if (!itemSection) continue;
+        const items = itemSection.contents;
+        for (const item of items) {
+          if (item.videoRenderer) {
+            return item.videoRenderer.videoId;
           }
         }
-
-        statusDiv.textContent = `Playlist loaded with ${playerBoxes.length} players. Enjoy!`;
-        updateLayoutState();
-
-      } catch (e) {
-        statusDiv.textContent = "";
-        alert("Error loading playlist: " + e.message);
-        console.error(e);
-      }
-    }
-
-    function clearPlayers() {
-      const playersDiv = document.getElementById("players");
-      playersDiv.innerHTML = '';
-      playerBoxes = [];
-      ytPlayerCounter = 0;
-      updateLayoutState();
-    }
-
-    async function searchYouTube(query) {
-      const cors = 'https://api.allorigins.win/raw?url=';
-      const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-      const fetchUrl = cors + encodeURIComponent(youtubeSearchUrl);
-
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error("YouTube fetch failed");
-
-      const html = await res.text();
-      // Regex to find videoId and title from youtube search page HTML
-      const videoRegex = /"videoRenderer":\s*{.*?"videoId":"(.*?)".*?"title":\{"runs":\[\{"text":"(.*?)"\}/s;
-      const match = videoRegex.exec(html);
-      if (match) {
-        return match[1];
       }
       return null;
+    } catch (e) {
+      console.error('YouTube search error:', e);
+      return null;
+    }
+  }
+
+  loadBtn.addEventListener('click', async () => {
+    const playlistUrl = playlistUrlInput.value.trim();
+
+    if (!playlistUrl) {
+      alert('Please enter a Spotify playlist URL.');
+      return;
     }
 
-    function pauseAllExcept(id) {
-      playerBoxes.forEach(p => {
-        if (p.id !== id && p.isPlaying) {
-          p.player.pauseVideo();
-          p.isPlaying = false;
-          const playBtn = p.box.querySelector('.controls button:nth-child(2)');
-          if (playBtn) playBtn.textContent = '▶️';
-        }
-      });
+    const playlistId = extractPlaylistId(playlistUrl);
+    if (!playlistId) {
+      alert('Invalid Spotify playlist URL.');
+      return;
     }
 
-    function openPlayer(videoId, title, thumb) {
-      const playerId = `ytplayer${ytPlayerCounter++}`;
-      const box = document.createElement("div");
-      box.className = "player-box";
-      box.style.backgroundImage = thumb ? `url(${decodeURIComponent(atob(thumb))})` : 'none';
+    playlistInfo.innerHTML = 'Loading playlist...';
 
-      box.innerHTML = `
-        <button class="close-btn" onclick="removePlayer('${playerId}')">×</button>
-        <button class="refresh-btn" onclick="refreshPlayer('${playerId}')">⟳</button>
-        <button class="download-btn" onclick="downloadMP3('${videoId}', \`${title}\`)">⤓</button>
-        <button class="fullscreen-btn" onclick="toggleFullscreen(this.parentElement)">⛶</button>
-        <div class="overlay">
-          <div><strong>${title}</strong></div>
-          <div class="progress-container" onclick="seek(event, '${playerId}')">
-            <div class="progress-bar" id="bar-${playerId}"></div>
-          </div>
-          <div class="time" id="time-${playerId}">0:00 / 0:00</div>
-          <div class="controls">
-            <button onclick="seekRelative('${playerId}', -10)">⏮</button>
-            <button onclick="togglePlayPause('${playerId}', this)">⏸</button>
-            <button onclick="seekRelative('${playerId}', 10)">⏭</button>
-          </div>
-          <div id="${playerId}"></div>
-        </div>
-      `;
+    try {
+      const token = await getSpotifyToken();
 
-      document.getElementById("players").appendChild(box);
+      let tracks = [];
+      let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`;
 
-      const autoplay = !isAnyPlayerPlaying();
-
-      const player = new YT.Player(playerId, {
-        height: "0",
-        width: "0",
-        videoId,
-        playerVars: { autoplay: autoplay ? 1 : 0, controls: 0, loop: 0 },
-        events: {
-          onReady: (e) => {
-            const p = {
-              id: playerId,
-              player: e.target,
-              box: box,
-              bar: document.getElementById(`bar-${playerId}`),
-              time: document.getElementById(`time-${playerId}`),
-              isPlaying: autoplay
-            };
-            playerBoxes.push(p);
-            if (autoplay) {
-              pauseAllExcept(playerId);
-              e.target.playVideo();
-            }
-            setInterval(() => updateProgress(p), 500);
-          },
-          onStateChange: (e) => {
-            if (e.data === YT.PlayerState.ENDED) moveToNextBox(playerId);
+      while (nextUrl) {
+        const res = await fetch(nextUrl, {
+          headers: {
+            'Authorization': 'Bearer ' + token
+          }
+        });
+        if (!res.ok) {
+          if(res.status === 401) {
+            playlistInfo.innerHTML = 'Unauthorized: Invalid or expired token.';
+            return;
+          } else {
+            playlistInfo.innerHTML = 'Failed to load playlist tracks.';
+            return;
           }
         }
+        const data = await res.json();
+        tracks = tracks.concat(data.items);
+        nextUrl = data.next;
+      }
+
+      if (tracks.length === 0) {
+        playlistInfo.innerHTML = 'This playlist has no tracks.';
+        return;
+      }
+
+      let html = `<h3>Playlist Tracks (${tracks.length}):</h3><ul>`;
+      for (const [index, item] of tracks.entries()) {
+        const track = item.track;
+        if(!track) continue;
+        const name = track.name;
+        const artists = track.artists.map(a => a.name).join(', ');
+        html += `
+          <li>
+            <div class="track-info">
+              <span class="track-name">${name}</span><br/>
+              <span class="artist-name">${artists}</span>
+            </div>
+            <button class="download-btn" data-index="${index}" title="Download">
+              <img src="https://ratgames.vercel.app/media/install.png" alt="Download" />
+            </button>
+          </li>
+        `;
+      }
+      html += '</ul>';
+      playlistInfo.innerHTML = html;
+
+      document.querySelectorAll('.download-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const idx = btn.getAttribute('data-index');
+          const track = tracks[idx].track;
+          if (!track) return;
+
+          btn.disabled = true;
+          btn.title = 'Searching...';
+
+          const query = `${track.name} ${track.artists.map(a => a.name).join(' ')}`;
+
+          const videoId = await searchYouTubeVideo(query);
+
+          if (videoId) {
+            const yt1dUrl = `https://yt1d.com/en307/watch?v=${videoId}`;
+            window.open(yt1dUrl, '_blank');
+            btn.disabled = false;
+            btn.title = 'Download';
+          } else {
+            btn.title = 'Not found';
+            setTimeout(() => {
+              btn.title = 'Download';
+              btn.disabled = false;
+            }, 3000);
+          }
+        });
       });
 
-      updateLayoutState();
+    } catch (e) {
+      playlistInfo.innerHTML = 'Error loading playlist.';
+      console.error(e);
     }
-
-    function removePlayer(id) {
-      const index = playerBoxes.findIndex(p => p.id === id);
-      if (index >= 0) {
-        playerBoxes[index].player.destroy();
-        playerBoxes[index].box.remove();
-        playerBoxes.splice(index, 1);
-      }
-      updateLayoutState();
-    }
-
-    function refreshPlayer(playerId) {
-      const p = playerBoxes.find(b => b.id === playerId);
-      if (!p) return;
-      const videoId = p.player.getVideoData().video_id;
-      p.player.loadVideoById(videoId, 0);
-      p.isPlaying = true;
-      pauseAllExcept(playerId);
-    }
-
-    function isAnyPlayerPlaying() {
-      return playerBoxes.some(p => p.isPlaying);
-    }
-
-    function moveToNextBox(currentId) {
-      const currentIndex = playerBoxes.findIndex(p => p.id === currentId);
-      const next = playerBoxes[currentIndex + 1];
-      if (next) {
-        const isFullscreen = document.fullscreenElement;
-        pauseAllExcept(next.id);
-        next.player.playVideo();
-        next.isPlaying = true;
-        if (isFullscreen) toggleFullscreen(next.box);
-      }
-    }
-
-    function formatTime(t) {
-      const m = Math.floor(t / 60);
-      const s = Math.floor(t % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function updateProgress(box) {
-      if (!box || !box.player?.getDuration) return;
-      const t = box.player.getCurrentTime();
-      const d = box.player.getDuration();
-      if (d > 0) {
-        box.bar.style.width = `${(t / d) * 100}%`;
-        box.time.textContent = `${formatTime(t)} / ${formatTime(d)}`;
-      }
-    }
-
-    function togglePlayPause(id, btn) {
-      const box = playerBoxes.find(b => b.id === id);
-      if (!box) return;
-      if (box.isPlaying) {
-        box.player.pauseVideo();
-        btn.textContent = '▶️';
-      } else {
-        pauseAllExcept(id);
-        box.player.playVideo();
-        btn.textContent = '⏸';
-      }
-      box.isPlaying = !box.isPlaying;
-    }
-
-    function seekRelative(id, seconds) {
-      const box = playerBoxes.find(b => b.id === id);
-      if (box) {
-        const newTime = box.player.getCurrentTime() + seconds;
-        box.player.seekTo(newTime, true);
-      }
-    }
-
-    function seek(e, id) {
-      const box = playerBoxes.find(b => b.id === id);
-      if (!box) return;
-      const container = e.currentTarget;
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percent = x / container.offsetWidth;
-      const duration = box.player.getDuration();
-      box.player.seekTo(duration * percent, true);
-    }
-
-    function toggleFullscreen(el) {
-      if (!document.fullscreenElement) {
-        el.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-      }
-    }
-
-    function downloadMP3(videoId, title) {
-      const url = `https://yt1d.com/en307/watch?v=${videoId}`;
-      window.open(url, '_blank');
-    }
-  </script>
+  });
+</script>
 
 </body>
 </html>
