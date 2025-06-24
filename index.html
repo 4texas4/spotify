@@ -14,19 +14,6 @@
     color: #eee;
     text-align: center;
   }
-  button {
-    background: #1db954;
-    border: none;
-    color: white;
-    padding: 12px 24px;
-    font-size: 1.2rem;
-    border-radius: 6px;
-    cursor: pointer;
-    margin-top: 20px;
-  }
-  button:hover {
-    background: #17a44d;
-  }
   #token {
     margin-top: 40px;
     font-family: monospace;
@@ -41,31 +28,27 @@
 <body>
 
 <h1>Spotify Token Viewer</h1>
-<button id="fetchTokenBtn">Get New Token</button>
 
-<div id="token">Click the button to get a token.</div>
+<div id="token">Loading token...</div>
 
 <script>
-  const fetchTokenBtn = document.getElementById('fetchTokenBtn');
-  const tokenDiv = document.getElementById('token');
-
-  fetchTokenBtn.addEventListener('click', async () => {
-    tokenDiv.textContent = 'Fetching token...';
-
+  async function fetchToken() {
     try {
-      // Replace this URL with your real backend token URL
+      // Replace with your real backend token API URL
       const tokenApiUrl = '/api/token';
 
       const res = await fetch(tokenApiUrl);
       if (!res.ok) throw new Error('Failed to fetch token');
 
       const data = await res.json();
-      tokenDiv.textContent = data.access_token || 'No token received';
+      document.getElementById('token').textContent = data.access_token || 'No token received';
     } catch (err) {
-      tokenDiv.textContent = 'Error: ' + err.message;
+      document.getElementById('token').textContent = 'Error: ' + err.message;
       console.error(err);
     }
-  });
+  }
+
+  fetchToken();
 </script>
 
 </body>
