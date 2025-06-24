@@ -1,55 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Spotify Token Viewer</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    max-width: 600px;
-    margin: auto;
-    background: #121212;
-    color: #eee;
-    text-align: center;
-  }
-  #token {
-    margin-top: 40px;
-    font-family: monospace;
-    word-break: break-all;
-    font-size: 1.1rem;
-    background: #222;
-    padding: 15px;
-    border-radius: 8px;
-  }
-</style>
+  <title></title>
 </head>
 <body>
-
-<h1>Spotify Token Viewer</h1>
-
-<div id="token">Loading token...</div>
-
-<script>
-  async function fetchToken() {
-    try {
-      // Replace with your real backend token API URL
-      const tokenApiUrl = '/api/token';
-
-      const res = await fetch(tokenApiUrl);
-      if (!res.ok) throw new Error('Failed to fetch token');
-
-      const data = await res.json();
-      document.getElementById('token').textContent = data.access_token || 'No token received';
-    } catch (err) {
-      document.getElementById('token').textContent = 'Error: ' + err.message;
-      console.error(err);
-    }
-  }
-
-  fetchToken();
-</script>
-
+  <pre id="token">Loading token...</pre>
+  <script>
+    fetch('/api/token')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('token').textContent = data.access_token || 'No token received';
+      })
+      .catch(err => {
+        document.getElementById('token').textContent = 'Error: ' + err.message;
+      });
+  </script>
 </body>
 </html>
