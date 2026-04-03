@@ -69,6 +69,47 @@ export default {
       });
     }
 
+    // --- /pref/TRACKID GET - get source preference ---
+    if (path.startsWith("/pref/") && request.method === "GET") {
+      const trackId = path.slice(6);
+      if (!trackId) return new Response("Missing track ID", { status: 400 });
+      const cached = await caches.default.match(new Request(`https://prefs.zenith/${trackId}`));
+      if (cached) {
+        const data = await cached.json();
+        return new Response(JSON.stringify(data), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+      return new Response(JSON.stringify({ source: null }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+      });
+    }
+
+    // --- /pref/TRACKID POST - save/overwrite source preference ---
+    if (path.startsWith("/pref/") && request.method === "POST") {
+      const trackId = path.slice(6);
+      if (!trackId) return new Response("Missing track ID", { status: 400 });
+      try {
+        const body = await request.json();
+        const source = body.source;
+        if (!source) return new Response("Missing source", { status: 400 });
+        const prefKey = new Request(`https://prefs.zenith/${trackId}`);
+        // Delete old pref first so we always get fresh value
+        await caches.default.delete(prefKey);
+        const prefResponse = new Response(JSON.stringify({ source, updatedAt: Date.now() }), {
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "public, max-age=31536000",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+        ctx.waitUntil(caches.default.put(prefKey, prefResponse));
+        return new Response(JSON.stringify({ ok: true, trackId, source }), {
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      } catch (err) { return new Response(err.message, { status: 500 }); }
+    }
+
     // --- /s/QUERY - SEARCH ENDPOINT ---
     if (path.startsWith("/s/")) {
       const query = decodeURIComponent(path.slice(3));
@@ -130,7 +171,7 @@ export default {
           cachedResponse = new Response(spoticatchRes.body, {
             headers: {
               "Content-Type": "audio/mpeg",
-              "Cache-Control": "public, max-age=31536000",
+              "Cache-Control": "public, max-age=600",
               "Access-Control-Allow-Origin": "*"
             }
           });
@@ -180,6 +221,6 @@ export default {
       } catch (err) { return new Response(err.message, { status: 500 }); }
     }
 
-    return new Response("Available: /s/QUERY, /d/ID, or /p/PLAYLIST_ID", { status: 404 });
+    return new Response("Available: /s/QUERY, /d/ID, /p/PLAYLIST_ID, /pref/TRACKID", { status: 404 });
   }
 };
