@@ -130,7 +130,7 @@ export default {
           cachedResponse = new Response(spoticatchRes.body, {
             headers: {
               "Content-Type": "audio/mpeg",
-              "Cache-Control": "public, max-age=600",
+              "Cache-Control": "public, max-age=31536000",
               "Access-Control-Allow-Origin": "*"
             }
           });
