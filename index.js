@@ -1,8 +1,5 @@
-/**
- * Spoticatch Pure API Worker
- */
-const SPOTIFY_CLIENT_ID = 'ac6dca97304146688f3eb14da1cb3b0d';
-const SPOTIFY_CLIENT_SECRET = '716f2b0268e9468ea4d1b80cd05df605';
+const SPOTIFY_CLIENT_ID = 'd3699c4089874585ab34fc2a4090f766';
+const SPOTIFY_CLIENT_SECRET = '2b1bc7c989b54558912d71c439df41d3';
 
 async function getSpotifyToken() {
   const authResponse = await fetch("https://accounts.spotify.com/api/token", {
