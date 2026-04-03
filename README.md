@@ -5,3 +5,5 @@
 /d/ID        download tracks
 
 Spotify yep
+
+totally not using spoticatch
