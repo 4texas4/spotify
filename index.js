@@ -228,7 +228,15 @@ if (path.startsWith("/i/")) {
       return new Response("No image found", { status: 404 });
     }
 
-    return new Response(JSON.stringify({ cover: imageUrl }), {
+    return new Response(JSON.stringify({
+  title: data.name,
+  cover: imageUrl
+}), {
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  }
+});
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
