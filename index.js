@@ -201,6 +201,45 @@ export default {
       } catch (err) { return new Response(err.message, { status: 500 }); }
     }
 
+    // --- /i/PLAYLIST_ID - GET PLAYLIST COVER IMAGE ---
+if (path.startsWith("/i/")) {
+  const playlistId = path.slice(3);
+  if (!playlistId) {
+    return new Response("Missing playlist ID", { status: 400 });
+  }
+
+  try {
+    const token = await getSpotifyToken();
+
+    const res = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}`, {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      return new Response(`Spotify error: ${res.status}`, { status: res.status });
+    }
+
+    const data = await res.json();
+    const imageUrl = data.images?.[0]?.url;
+
+    if (!imageUrl) {
+      return new Response("No image found", { status: 404 });
+    }
+
+    return new Response(JSON.stringify({ cover: imageUrl }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+
+  } catch (err) {
+    return new Response(err.message, { status: 500 });
+  }
+}
+
     // --- /p/ID - PLAYLIST ENDPOINT ---
     if (path.startsWith("/p/")) {
       const playlistId = path.slice(3).split("/")[0];
